@@ -1,5 +1,6 @@
 package ua.factoriald.sunpp.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
@@ -38,6 +39,7 @@ public class ServiceEntity {
     /**
      * Власник сервісу
      */
+    @JsonIgnore
     @OneToOne
     @JoinColumn(name="OWNER_USER_ID",nullable = false)
     private UserEntity ownerUser;

@@ -1,10 +1,7 @@
 package ua.factoriald.sunpp.controller.rest;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import ua.factoriald.sunpp.model.*;
 import ua.factoriald.sunpp.model.constants.CheckTypeConstants;
 import ua.factoriald.sunpp.model.constants.RoleConstants;
@@ -29,6 +26,7 @@ import java.util.List;
  *
  */
 @RestController
+@CrossOrigin(origins = "http://localhost:4200")
 public class ServiceUserController {
 
     private final DataProcessController dataProcessController;
@@ -57,7 +55,7 @@ public class ServiceUserController {
      * @throws IOException якщо будуть проблеми з редіректом
      */
     @GetMapping("/user/{user_id}/application/create/{service_id}/{role_id}/")
-    public void createApplication(@PathVariable("user_id") Long userId,
+    public ApplicationEntity createApplication(@PathVariable("user_id") Long userId,
                                   @PathVariable("service_id") Long serviceId,
                                   @PathVariable("role_id") Long roleId,
                                   @RequestParam(value = "department_id", required = false) Long departmentId,
@@ -134,15 +132,16 @@ public class ServiceUserController {
                     userChecking,ownerChecking,adminChecking)));
 
             //зберігаємо заявку
-            applicationRepository.saveAndFlush(application);
+            application = applicationRepository.saveAndFlush(application);
 
-            response.sendRedirect("/service/all");
-            return;
+            //response.sendRedirect("/service/all");
+
+            return application;
 
         } catch (DataProcessException e) {
             e.printStackTrace();
             response.sendRedirect("/error");
-            return;
+            return null;
         }
     }
 
@@ -171,6 +170,29 @@ public class ServiceUserController {
         try {
             ServiceEntity service = dataProcessController.getServiceOrThrow(id);
             return service;
+
+        } catch (DataProcessException e) {
+            e.printStackTrace();
+            response.sendRedirect("/error");
+            return null;
+        }
+    }
+
+    /**
+     * Повертає усі заявки одного користувача
+     * @param userId Ідентифікатор заявки
+     * @param response через цей об'єкт виконується редірект
+     * @return Список заявок або null
+     * @throws IOException якщо будуть проблеми з редіректом
+     */
+    @GetMapping("/user/{user_id}/application/all")
+    public List<ApplicationEntity> getWorkerApplications(@PathVariable("user_id") Long userId,
+                                                         HttpServletResponse response) throws IOException {
+        try {
+            UserEntity user = dataProcessController.getUserOrThrow(userId);
+
+            List<ApplicationEntity> applications = applicationRepository.getAllByApplicant(user);
+            return applications;
 
         } catch (DataProcessException e) {
             e.printStackTrace();

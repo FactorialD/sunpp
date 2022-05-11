@@ -1,6 +1,7 @@
 package ua.factoriald.sunpp.model;
 
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
@@ -29,8 +30,14 @@ public class UserHaveAccessToServiceEntity {
     /**
      * Користувач, якому наданий доступ
      */
-    @OneToOne
+    /**
+     * Заявка, до якої відноситься перевірка
+     */
+    @JsonIgnore
+    @ManyToOne
     @JoinColumn(name = "USER_ID", nullable = false)
+    //@OneToOne
+    //@JoinColumn(name = "USER_ID", nullable = false)
     private UserEntity user;
 
     /**

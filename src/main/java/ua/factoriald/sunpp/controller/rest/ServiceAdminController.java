@@ -1,10 +1,7 @@
 package ua.factoriald.sunpp.controller.rest;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import ua.factoriald.sunpp.model.*;
 import ua.factoriald.sunpp.model.constants.CheckTypeConstants;
 import ua.factoriald.sunpp.model.constants.RoleConstants;
@@ -24,6 +21,7 @@ import java.util.List;
  *
  */
 @RestController
+@CrossOrigin(origins = "http://localhost:4200")
 public class ServiceAdminController {
 
     private final DataProcessController dataProcessController;
@@ -314,29 +312,6 @@ public class ServiceAdminController {
         try {
             UserEntity user = dataProcessController.getUserOrThrow(id);
             return user;
-
-        } catch (DataProcessException e) {
-            e.printStackTrace();
-            response.sendRedirect("/error");
-            return null;
-        }
-    }
-
-    /**
-     * Повертає усі заявки одного користувача
-     * @param userId Ідентифікатор заявки
-     * @param response через цей об'єкт виконується редірект
-     * @return Список заявок або null
-     * @throws IOException якщо будуть проблеми з редіректом
-     */
-    @GetMapping("/admin/user/{id}/application/all")
-    public List<ApplicationEntity> getWorkerApplications(@PathVariable("id") Long userId,
-                                                         HttpServletResponse response) throws IOException {
-        try {
-            UserEntity user = dataProcessController.getUserOrThrow(userId);
-
-            List<ApplicationEntity> applications = applicationRepository.getAllByApplicant(user);
-            return applications;
 
         } catch (DataProcessException e) {
             e.printStackTrace();

@@ -4,9 +4,12 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
+import lombok.ToString;
 import org.hibernate.Hibernate;
 
 import javax.persistence.*;
+import java.util.ArrayList;
+import java.util.List;
 
 @Getter
 @Setter
@@ -39,6 +42,13 @@ public class UserEntity {
     @JoinColumn(name = "WORKER_ID", nullable = false)
     private WorkerEntity workerEntity;
 
+    /**
+     * Список записів доступу для цього користувача
+     */
+    @OneToMany(cascade = {CascadeType.ALL})
+    @JoinColumn(name="USER_ID")
+    @ToString.Exclude
+    private List<UserHaveAccessToServiceEntity> roles = new ArrayList<>();
 
     @Override
     public boolean equals(Object o) {
