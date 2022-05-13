@@ -1,7 +1,9 @@
 package ua.factoriald.sunpp.controller.rest;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 import ua.factoriald.sunpp.model.*;
 import ua.factoriald.sunpp.model.constants.CheckTypeConstants;
 import ua.factoriald.sunpp.model.constants.RoleConstants;
@@ -10,19 +12,14 @@ import ua.factoriald.sunpp.repository.CheckTypeRepository;
 import ua.factoriald.sunpp.repository.RoleRepository;
 import ua.factoriald.sunpp.repository.ServiceRepository;
 import ua.factoriald.sunpp.services.DataProcessController;
-import ua.factoriald.sunpp.services.DataProcessException;
 
-import javax.servlet.http.HttpServletResponse;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 
-
 /**
- * Клас працює з адресами, що може відкрити користувач
- * Контролер повертає відповіді в стилі REST
+ * REST контроллер для роботи з даними, що стосуються роботи користувача
  *
  */
 @RestController
@@ -51,16 +48,13 @@ public class ServiceUserController {
      * @param roleId Ідентифікатор потрібної ролі
      * @param departmentId Ідентифікатор підрозділу (опціонально)
      * @param note Коментар (опціонально)
-     * @param response через цей об'єкт виконується редірект
-     * @throws IOException якщо будуть проблеми з редіректом
      */
     @GetMapping("/user/{user_id}/application/create/{service_id}/{role_id}/")
     public ApplicationEntity createApplication(@PathVariable("user_id") Long userId,
                                   @PathVariable("service_id") Long serviceId,
                                   @PathVariable("role_id") Long roleId,
                                   @RequestParam(value = "department_id", required = false) Long departmentId,
-                                  @RequestParam(value = "note", required = false) String note,
-                                  HttpServletResponse response) throws IOException {
+                                  @RequestParam(value = "note", required = false) String note) {
         try {
             UserEntity user = dataProcessController.getUserOrThrow(userId);
             ServiceEntity service = dataProcessController.getServiceOrThrow(serviceId);
@@ -70,7 +64,7 @@ public class ServiceUserController {
                 department = dataProcessController.getDepartmentOrThrow(departmentId);
             }
             if(!service.getAvaliableRoles().contains(role)){
-                throw new DataProcessException("Сервіс не має такої ролі");
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Сервіс не має такої ролі");
             }
 
             //Створюємо заявку
@@ -134,14 +128,11 @@ public class ServiceUserController {
             //зберігаємо заявку
             application = applicationRepository.saveAndFlush(application);
 
-            //response.sendRedirect("/service/all");
-
             return application;
 
-        } catch (DataProcessException e) {
+        } catch (ResponseStatusException e) {
             e.printStackTrace();
-            response.sendRedirect("/error");
-            return null;
+            throw e;
         }
     }
 
@@ -160,44 +151,36 @@ public class ServiceUserController {
     /**
      * Повертає один сервіс і інформацію про нього
      * @param id Ідентифікатор сервісу
-     * @param response через цей об'єкт виконується редірект
      * @return Сервіс або null
-     * @throws IOException якщо будуть проблеми з редіректом
      */
     @GetMapping("/service/{id}")
-    public ServiceEntity getService(@PathVariable("id") Long id,
-                                    HttpServletResponse response) throws IOException {
+    public ServiceEntity getService(@PathVariable("id") Long id) {
         try {
             ServiceEntity service = dataProcessController.getServiceOrThrow(id);
             return service;
 
-        } catch (DataProcessException e) {
+        } catch (ResponseStatusException e) {
             e.printStackTrace();
-            response.sendRedirect("/error");
-            return null;
+            throw e;
         }
     }
 
     /**
      * Повертає усі заявки одного користувача
      * @param userId Ідентифікатор заявки
-     * @param response через цей об'єкт виконується редірект
      * @return Список заявок або null
-     * @throws IOException якщо будуть проблеми з редіректом
      */
     @GetMapping("/user/{user_id}/application/all")
-    public List<ApplicationEntity> getWorkerApplications(@PathVariable("user_id") Long userId,
-                                                         HttpServletResponse response) throws IOException {
+    public List<ApplicationEntity> getWorkerApplications(@PathVariable("user_id") Long userId) {
         try {
             UserEntity user = dataProcessController.getUserOrThrow(userId);
 
             List<ApplicationEntity> applications = applicationRepository.getAllByApplicant(user);
             return applications;
 
-        } catch (DataProcessException e) {
+        } catch (ResponseStatusException e) {
             e.printStackTrace();
-            response.sendRedirect("/error");
-            return null;
+            throw e;
         }
     }
 

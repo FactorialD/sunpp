@@ -1,23 +1,20 @@
 package ua.factoriald.sunpp.controller.rest;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 import ua.factoriald.sunpp.model.*;
 import ua.factoriald.sunpp.model.constants.CheckTypeConstants;
 import ua.factoriald.sunpp.model.constants.RoleConstants;
 import ua.factoriald.sunpp.repository.*;
 import ua.factoriald.sunpp.services.DataProcessController;
-import ua.factoriald.sunpp.services.DataProcessException;
 
-import javax.servlet.http.HttpServletResponse;
-import java.io.IOException;
 import java.util.Date;
 import java.util.List;
 
-
 /**
- * Клас працює з адресами, що має використовувати тільки адмін
- * Контролер повертає відповіді в стилі REST
+ * REST контроллер для роботи з даними, що стосуються роботи адміна
  *
  */
 @RestController
@@ -52,13 +49,10 @@ public class ServiceAdminController {
     /**
      * Повертає всі заявки від усіх сервісів адміністратора
      * @param adminId Ідентифікатор адміністратора
-     * @param response
      * @return Список заявок або null
-     * @throws IOException
      */
     @GetMapping("/admin/{admin_id}/application/all/service/all")
-    public List<ApplicationEntity> getAllApplications(@PathVariable("admin_id") Long adminId,
-                                                      HttpServletResponse response) throws IOException {
+    public List<ApplicationEntity> getAllApplications(@PathVariable("admin_id") Long adminId) {
         try{
             UserEntity admin = dataProcessController.getUserWithRoleOrThrow(
                     adminId,
@@ -67,10 +61,9 @@ public class ServiceAdminController {
             List<ApplicationEntity> applications = dataProcessController.getAllApplicationsForAdmin(admin);
             return applications;
 
-        } catch (DataProcessException e) {
+        } catch (ResponseStatusException e) {
             e.printStackTrace();
-            response.sendRedirect("/error");
-            return null;
+            throw e;
         }
     }
 
@@ -78,14 +71,11 @@ public class ServiceAdminController {
      * Повертає одну заявку від сервісів адміністратора
      * @param adminId Ідентифікатор адміністратора
      * @param applicationId Ідентифікатор заявки
-     * @param response
      * @return Заявка або null
-     * @throws IOException
      */
     @GetMapping("/admin/{admin_id}/application/{id}")
     public ApplicationEntity getApplication(@PathVariable("admin_id") Long adminId,
-                                            @PathVariable("id") Long applicationId,
-                                            HttpServletResponse response) throws IOException {
+                                            @PathVariable("id") Long applicationId) {
         try{
             UserEntity adminUser = dataProcessController.getUserWithRoleOrThrow(
                     adminId,
@@ -95,23 +85,19 @@ public class ServiceAdminController {
 
             return application;
 
-        } catch (DataProcessException e) {
+        } catch (ResponseStatusException e) {
             e.printStackTrace();
-            response.sendRedirect("/error");
-            return null;
+            throw e;
         }
     }
 
     /**
      * Повертає всі заявки, які очікують на рішення адміна
      * @param adminId Ідентифікатор адміністратора
-     * @param response
      * @return Список заявок або null
-     * @throws IOException
      */
     @GetMapping("/admin/{admin_id}/application/refreshed")
-    public List<ApplicationEntity> getAdminRefreshedApplications(@PathVariable("admin_id") Long adminId,
-                                                                 HttpServletResponse response) throws IOException{
+    public List<ApplicationEntity> getAdminRefreshedApplications(@PathVariable("admin_id") Long adminId) {
         try{
             UserEntity admin = dataProcessController.getUserWithRoleOrThrow(
                     adminId,
@@ -122,10 +108,9 @@ public class ServiceAdminController {
                     dataProcessController.getRefreshedApplicationsForAdmin(allApplications);
             return refreshedApplications;
 
-        } catch (DataProcessException e) {
+        } catch (ResponseStatusException e) {
             e.printStackTrace();
-            response.sendRedirect("/error");
-            return null;
+            throw e;
         }
     }
 
@@ -134,14 +119,11 @@ public class ServiceAdminController {
      * @param applicationId Ідентифікатор заявки
      * @param adminId Ідентифікатор адміністратора, що її приймає
      * @param note Коментар адміністратора
-     * @param response через цей об'єкт виконується редірект
-     * @throws IOException
      */
     @GetMapping("/admin/{admin_id}/application/{id}/accept")
     public void acceptApplicationByAdmin(@PathVariable("id") Long applicationId,
                                            @PathVariable("admin_id") Long adminId,
-                                           @RequestParam(value = "note", required = false) String note,
-                                           HttpServletResponse response) throws IOException {
+                                           @RequestParam(value = "note", required = false) String note) {
         try {
             UserEntity adminUser = dataProcessController.getUserWithRoleOrThrow(
                     adminId,
@@ -156,11 +138,11 @@ public class ServiceAdminController {
                 if(check.getCheckType().equals(checkTypeRepository.findById(CheckTypeConstants.CHECKING_RECORD).get()) &&
                         check.getRole().equals(roleRepository.findById(RoleConstants.OWNER).get()) ){//якщо це запис власника
                     if(check.getCheckYesNoNull() == null){
-                        throw new DataProcessException("Власник ще не перевірив заявку");
+                        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Власник ще не перевірив заявку");
                     }else if(check.getCheckYesNoNull()){//і він підтверджений
                         //то все в порядку, ідемо далі
                     }else{
-                        throw new DataProcessException("Власник відхилив заявку");
+                        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Власник відхилив заявку");
                     }
                 } else if (check.getCheckType().equals(checkTypeRepository.findById(CheckTypeConstants.CHECKING_RECORD).get()) &&
                         check.getRole().equals(roleRepository.findById(RoleConstants.ADMIN).get()) ){//якщо це запис адміна
@@ -168,9 +150,9 @@ public class ServiceAdminController {
                         //адмін ще не перевірив заявку
                         checkRecord = check;
                     }else if(check.getCheckYesNoNull()){//і він підтверджений
-                        throw new DataProcessException("Адміністратор вже прийняв заявку");
+                        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Адміністратор вже прийняв заявку");
                     }else{
-                        throw new DataProcessException("Адміністратор вже відхилив заявку");
+                        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Адміністратор вже відхилив заявку");
                     }
                 }else{//це запис користувача, нічого не робимо
                     //збережемо на потім
@@ -207,13 +189,11 @@ public class ServiceAdminController {
             //Зберігаємо запис доступу
             accessToServiceRepository.saveAndFlush(accessRecord);
 
-            response.sendRedirect("/admin/"+ adminId + "/application/refreshed");
             return;
 
-        }catch (DataProcessException e) {
+        } catch (ResponseStatusException e) {
             e.printStackTrace();
-            response.sendRedirect("/error");
-            return;
+            throw e;
         }
     }
 
@@ -222,14 +202,11 @@ public class ServiceAdminController {
      * @param applicationId Ідентифікатор заявки
      * @param adminId Ідентифікатор адміна
      * @param note Коментар адміністратора
-     * @param response через цей об'єкт виконується редірект
-     * @throws IOException
      */
     @GetMapping("/admin/{admin_id}/application/{id}/decline")
     public void declineApplicationByAdmin(@PathVariable("id") Long applicationId,
                                             @PathVariable("admin_id") Long adminId,
-                                            @RequestParam(value = "note", required = false) String note,
-                                           HttpServletResponse response) throws IOException {
+                                            @RequestParam(value = "note", required = false) String note) {
         try {
             UserEntity adminUser = dataProcessController.getUserWithRoleOrThrow(
                     adminId,
@@ -243,11 +220,11 @@ public class ServiceAdminController {
                 if(check.getCheckType().equals(checkTypeRepository.findById(CheckTypeConstants.CHECKING_RECORD).get()) &&
                         check.getRole().equals(roleRepository.findById(RoleConstants.OWNER).get()) ){//якщо це запис власника
                     if(check.getCheckYesNoNull() == null){
-                        throw new DataProcessException("Власник ще не перевірив заявку");
+                        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Власник ще не перевірив заявку");
                     }else if(check.getCheckYesNoNull()){//і він підтверджений
                         //то все в порядку, ідемо далі
                     }else{
-                        throw new DataProcessException("Власник відхилив заявку");
+                        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Власник відхилив заявку");
                     }
                 } else if (check.getCheckType().equals(checkTypeRepository.findById(CheckTypeConstants.CHECKING_RECORD).get()) &&
                         check.getRole().equals(roleRepository.findById(RoleConstants.ADMIN).get()) ){//якщо це запис адміна
@@ -255,9 +232,9 @@ public class ServiceAdminController {
                         //адмін ще не перевірив заявку
                         checkRecord = check;
                     }else if(check.getCheckYesNoNull()){//і він підтверджений
-                        throw new DataProcessException("Адміністратор вже прийняв заявку");
+                        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Адміністратор вже прийняв заявку");
                     }else{
-                        throw new DataProcessException("Адміністратор вже відхилив заявку");
+                        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Адміністратор вже відхилив заявку");
                     }
                 }else{//це запис користувача, нічого не робимо
                     //збережемо на потім
@@ -278,13 +255,11 @@ public class ServiceAdminController {
             //Зберігаємо запис перевірки
             applicationCheckingRepository.saveAndFlush(checkRecord);
 
-            response.sendRedirect("/admin/"+ adminId + "/application/refreshed");
             return;
 
-        }catch (DataProcessException e) {
+        } catch (ResponseStatusException e) {
             e.printStackTrace();
-            response.sendRedirect("/error");
-            return;
+            throw e;
         }
     }
 
@@ -302,21 +277,17 @@ public class ServiceAdminController {
     /**
      * Повертає одного користувача
      * @param id Ідентифікатор користувача
-     * @param response через цей об'єкт виконується редірект
      * @return Користувач або null
-     * @throws IOException якщо будуть проблеми з редіректом
      */
     @GetMapping("/admin/user/{id}")
-    public UserEntity getUser(@PathVariable("id") Long id,
-                              HttpServletResponse response) throws IOException {
+    public UserEntity getUser(@PathVariable("id") Long id) {
         try {
             UserEntity user = dataProcessController.getUserOrThrow(id);
             return user;
 
-        } catch (DataProcessException e) {
+        } catch (ResponseStatusException e) {
             e.printStackTrace();
-            response.sendRedirect("/error");
-            return null;
+            throw e;
         }
     }
 
@@ -334,21 +305,17 @@ public class ServiceAdminController {
     /**
      * Повертає одного робітника
      * @param id Ідентифікатор робітника
-     * @param response через цей об'єкт виконується редірект
      * @return Робітник або null
-     * @throws IOException якщо будуть проблеми з редіректом
      */
     @GetMapping("/admin/worker/{id}")
-    public WorkerEntity getWorker(@PathVariable("id") Long id,
-                                  HttpServletResponse response) throws IOException {
+    public WorkerEntity getWorker(@PathVariable("id") Long id) {
         try {
             WorkerEntity worker = dataProcessController.getWorkerOrThrow(id);
             return worker;
 
-        } catch (DataProcessException e) {
+        } catch (ResponseStatusException e) {
             e.printStackTrace();
-            response.sendRedirect("/error");
-            return null;
+            throw e;
         }
     }
 
@@ -363,7 +330,6 @@ public class ServiceAdminController {
         return departments;
     }
 
-
     /**
      * Повертає всі посади
      * @return Список посад
@@ -374,7 +340,5 @@ public class ServiceAdminController {
         List<PositionEntity> positions = positionRepository.findAll();
         return positions;
     }
-
-
 
 }

@@ -1,7 +1,9 @@
 package ua.factoriald.sunpp.services;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
+import org.springframework.web.server.ResponseStatusException;
 import ua.factoriald.sunpp.model.*;
 import ua.factoriald.sunpp.model.constants.CheckTypeConstants;
 import ua.factoriald.sunpp.model.constants.RoleConstants;
@@ -14,12 +16,10 @@ import java.util.Optional;
 /**
  * Клас зберігає методи, що працюють з даними з бази даних і опрацьовують їх для зручного користування
  *
- * В цьому класі є методи, що кидають {@link DataProcessException}
- * Це зроблено для зручного використання цих методів.
- * Для того щоб правильно використати такі методи, їх потрібно викликати в блоці @try-@catch
- * При помилці доступу чи неправильних даних блок @catch зловить виключення і виконає потрібні дії
+ * У випадку проблем методи викидають помилку з кодом помилки.
+ * Для правильного використання виклики цих методів потрібно завернути в блок try-catch
+ * і прокидувати виключення далі.
  *
- * Див. {@link DataProcessException}
  */
 @Component
 public class DataProcessController {
@@ -50,16 +50,16 @@ public class DataProcessController {
      * @param userId Ідентифікатор користувача
      * @param role Потрібна роль користувача
      * @return Користувач
-     * @throws DataProcessException, якщо немає такого користувача чи у нього немає такої ролі
+     * @throws ResponseStatusException, якщо немає такого користувача чи у нього немає такої ролі
      */
-    public UserEntity getUserWithRoleOrThrow(Long userId, RoleEntity role) throws DataProcessException {
+    public UserEntity getUserWithRoleOrThrow(Long userId, RoleEntity role) throws ResponseStatusException {
         Optional<UserEntity> userOpt = userRepository.findById(userId);
         if(!userOpt.isPresent()){
-            throw new DataProcessException("Немає такого користувача");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Немає такого користувача");
         }else{
             UserEntity user = userOpt.get();
             if(accessRepository.getAllByUserAndRole(user, role).size() == 0){
-                throw new DataProcessException("Цей користувач не має потрібних прав");
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Цей користувач не має потрібних прав");
             }else{
                 //Все в порядку, цей користувач існує і в нього є потрібні права
                 return user;
@@ -71,12 +71,12 @@ public class DataProcessController {
      * Повертає користувача за ідентифікатором
      * @param userId Ідентифікатор користувача
      * @return Користувач
-     * @throws DataProcessException, якщо немає такого користувача
+     * @throws ResponseStatusException, якщо немає такого користувача
      */
-    public UserEntity getUserOrThrow(Long userId) throws DataProcessException {
+    public UserEntity getUserOrThrow(Long userId) throws ResponseStatusException {
         Optional<UserEntity> userOpt = userRepository.findById(userId);
         if(!userOpt.isPresent()){
-            throw new DataProcessException("Немає такого користувача");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Немає такого користувача");
         }else{
             return userOpt.get();
         }
@@ -86,12 +86,12 @@ public class DataProcessController {
      * Повертає робітника за ідентифікатором
      * @param workerId Ідентифікатор робітника
      * @return Робітник
-     * @throws DataProcessException, якщо немає такого робітника
+     * @throws ResponseStatusException, якщо немає такого робітника
      */
-    public WorkerEntity getWorkerOrThrow(Long workerId) throws DataProcessException {
+    public WorkerEntity getWorkerOrThrow(Long workerId) throws ResponseStatusException {
         Optional<WorkerEntity> workerOpt = workerRepository.findById(workerId);
         if(!workerOpt.isPresent()){
-            throw new DataProcessException("Немає такого працівника");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Немає такого працівника");
         }else{
             return workerOpt.get();
         }
@@ -101,12 +101,12 @@ public class DataProcessController {
      * Повертає сервіс за ідентифікатором
      * @param serviceId Ідентифікатор сервісу
      * @return Сервіс
-     * @throws DataProcessException, якшо немає такого сервісу
+     * @throws ResponseStatusException, якшо немає такого сервісу
      */
-    public ServiceEntity getServiceOrThrow(Long serviceId) throws DataProcessException {
+    public ServiceEntity getServiceOrThrow(Long serviceId) throws ResponseStatusException {
         Optional<ServiceEntity> serviceOpt = serviceRepository.findById(serviceId);
         if(!serviceOpt.isPresent()){
-            throw new DataProcessException("Немає такого сервісу");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Немає такого сервісу");
         }
         return serviceOpt.get();
     }
@@ -115,12 +115,12 @@ public class DataProcessController {
      * Повертає підрозділ за ідентифікатором
      * @param departmentId Ідентифікатор підрозділу
      * @return Підрозділ
-     * @throws DataProcessException, якщо немає такого підрозділу
+     * @throws ResponseStatusException, якщо немає такого підрозділу
      */
-    public DepartmentEntity getDepartmentOrThrow(Long departmentId) throws DataProcessException {
+    public DepartmentEntity getDepartmentOrThrow(Long departmentId) throws ResponseStatusException {
         Optional<DepartmentEntity> departmentOpt = departmentRepository.findById(departmentId);
         if(!departmentOpt.isPresent()){
-            throw new DataProcessException("Немає такого підрозділу");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Немає такого підрозділу");
         }
         return departmentOpt.get();
     }
@@ -129,12 +129,12 @@ public class DataProcessController {
      * Повертає роль за ідентифікатором
      * @param roleId Ідентифікатор ролі
      * @return Роль
-     * @throws DataProcessException, якщо такої ролі немає
+     * @throws ResponseStatusException, якщо такої ролі немає
      */
-    public RoleEntity getRoleOrThrow(Long roleId) throws DataProcessException {
+    public RoleEntity getRoleOrThrow(Long roleId) throws ResponseStatusException {
         Optional<RoleEntity> roleOpt = roleRepository.findById(roleId);
         if(!roleOpt.isPresent()){
-            throw new DataProcessException("Немає такої ролі");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Немає такої ролі");
         }
         return roleOpt.get();
     }
@@ -143,37 +143,37 @@ public class DataProcessController {
      * Повертає заявку за ідентифікатором
      * @param applicationId Ідентифікатор заявки
      * @return Заявки
-     * @throws DataProcessException, якщо такої заявки немає
+     * @throws ResponseStatusException, якщо такої заявки немає
      */
-    public ApplicationEntity getApplicationOrThrow(Long applicationId) throws DataProcessException {
+    public ApplicationEntity getApplicationOrThrow(Long applicationId) throws ResponseStatusException {
         Optional<ApplicationEntity> applicationOpt = applicationRepository.findById(applicationId);
         if(!applicationOpt.isPresent()){
-            throw new DataProcessException("Немає такої заявки");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Немає такої заявки");
         }
         return applicationOpt.get();
     }
 
     /**
-     * Метод створений для того, щоб викидати DataProcessException, якщо сервіс не належить власнику
+     * Метод створений для того, щоб викидати ResponseStatusException, якщо сервіс не належить власнику
      * @param service Сервіс
      * @param user Потенціальний власник сервісу
-     * @throws DataProcessException, якщо сервіс не належить власнику
+     * @throws ResponseStatusException, якщо сервіс не належить власнику
      */
-    public void throwIfServiceNotOfOwner(ServiceEntity service, UserEntity user) throws DataProcessException {
+    public void throwIfServiceNotOfOwner(ServiceEntity service, UserEntity user) throws ResponseStatusException {
 
         List<ServiceEntity> ownerServices = serviceRepository.getAllByOwnerUser(user);
         if(!ownerServices.contains(service)){
-            throw new DataProcessException("Це не сервіс власника");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Це не сервіс власника");
         }
     }
 
     /**
-     * Метод створений для того, щоб викидати DataProcessException, якщо сервіс не належить адміністратору
+     * Метод створений для того, щоб викидати ResponseStatusException, якщо сервіс не належить адміністратору
      * @param service Сервіс
      * @param user Потенціальний адміністратор сервісу
-     * @throws DataProcessException, якщо сервіс не належить адміністратору
+     * @throws ResponseStatusException, якщо сервіс не належить адміністратору
      */
-    public void throwIfServiceNotOfAdmin(ServiceEntity service, UserEntity user) throws DataProcessException {
+    public void throwIfServiceNotOfAdmin(ServiceEntity service, UserEntity user) throws ResponseStatusException {
 
         List<UserHaveAccessToServiceEntity> accesses = accessRepository.getAllByUserAndRole(
                 user,
@@ -184,7 +184,7 @@ public class DataProcessController {
                 return;
             }
         }
-        throw new DataProcessException("Це не сервіс адміністратора");
+        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Це не сервіс адміністратора");
     }
 
     /**
