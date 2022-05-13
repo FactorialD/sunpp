@@ -1,18 +1,17 @@
 package ua.factoriald.sunpp.controller.rest;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 import ua.factoriald.sunpp.model.ApplicationCheckingEntity;
 import ua.factoriald.sunpp.model.ApplicationEntity;
 import ua.factoriald.sunpp.model.ServiceEntity;
 import ua.factoriald.sunpp.model.UserEntity;
-import ua.factoriald.sunpp.model.constants.CheckTypeConstants;
 import ua.factoriald.sunpp.model.constants.RoleConstants;
 import ua.factoriald.sunpp.repository.*;
-import ua.factoriald.sunpp.services.DataProcessController;
+import ua.factoriald.sunpp.services.DataProcessService;
 
+import java.sql.Timestamp;
 import java.util.Date;
 import java.util.List;
 
@@ -24,38 +23,37 @@ import java.util.List;
 @CrossOrigin(origins = "http://localhost:4200")
 public class ServiceOwnerController {
 
-    private final DataProcessController dataProcessController;
+    private final DataProcessService dataService;
     private final ServiceRepository serviceRepository;
     private final ApplicationRepository applicationRepository;
     private final RoleRepository roleRepository;
     private final ApplicationCheckingRepository checkingRepository;
-    private final CheckTypeRepository checkTypeRepository;
 
     @Autowired
-    public ServiceOwnerController(DataProcessController dataProcessController, ServiceRepository serviceRepository, ApplicationRepository applicationRepository, RoleRepository roleRepository, ApplicationCheckingRepository checkingRepository, CheckTypeRepository checkTypeRepository) {
-        this.dataProcessController = dataProcessController;
+    public ServiceOwnerController(DataProcessService dataService, ServiceRepository serviceRepository, ApplicationRepository applicationRepository, RoleRepository roleRepository, ApplicationCheckingRepository checkingRepository) {
+        this.dataService = dataService;
         this.serviceRepository = serviceRepository;
         this.applicationRepository = applicationRepository;
         this.roleRepository = roleRepository;
         this.checkingRepository = checkingRepository;
-        this.checkTypeRepository = checkTypeRepository;
     }
 
     /**
      * Повертає всі заявки від всіх сервісів власника
-     * @param ownerId ідентифікатор власника
+     * @param ownerIdString ідентифікатор власника
      * @return Список заявок або @null
      */
     @GetMapping("/owner/{owner_id}/application/all/service/all")
-    public List<ApplicationEntity> getAllOwnerApplications(@PathVariable("owner_id") Long ownerId) {
+    public List<ApplicationEntity> getAllOwnerApplications(@PathVariable("owner_id") String ownerIdString) {
         try{
-            UserEntity owner = dataProcessController.getUserWithRoleOrThrow(
+            Long ownerId = dataService.getLongOrThrow(ownerIdString);
+
+            UserEntity owner = dataService.getUserWithRoleOrThrow(
                     ownerId,
                     roleRepository.findById(RoleConstants.OWNER).get());
 
-            List<ApplicationEntity> applications = applicationRepository.getAllByServiceIn(
+            return applicationRepository.getAllByServiceIn(
                     serviceRepository.getAllByOwnerUser(owner));
-            return applications;
 
         } catch (ResponseStatusException e) {
             e.printStackTrace();
@@ -65,22 +63,24 @@ public class ServiceOwnerController {
 
     /**
      * Повертає всі заявки від одного сервісу власника. Якщо це не сервіс власника, то помилка доступу
-     * @param ownerId Ідентифікатор власника
-     * @param serviceId Ідентифікатор сервісу
+     * @param ownerIdString Ідентифікатор власника
+     * @param serviceIdString Ідентифікатор сервісу
      * @return Список заявок або null
      */
     @GetMapping("/owner/{owner_id}/application/all/service/{service_id}")
-    public List<ApplicationEntity> getAllOwnerApplicationsByService(@PathVariable("owner_id") Long ownerId,
-                                                                    @PathVariable("service_id") Long serviceId) {
+    public List<ApplicationEntity> getAllOwnerApplicationsByService(@PathVariable("owner_id") String ownerIdString,
+                                                                    @PathVariable("service_id") String serviceIdString) {
         try{
-            UserEntity owner = dataProcessController.getUserWithRoleOrThrow(
+            Long ownerId = dataService.getLongOrThrow(ownerIdString);
+            Long serviceId = dataService.getLongOrThrow(serviceIdString);
+
+            UserEntity owner = dataService.getUserWithRoleOrThrow(
                     ownerId,
                     roleRepository.findById(RoleConstants.OWNER).get());
-            ServiceEntity service = dataProcessController.getServiceOrThrow(serviceId);
-            dataProcessController.throwIfServiceNotOfOwner(service,owner);
+            ServiceEntity service = dataService.getServiceOrThrow(serviceId);
+            dataService.throwIfServiceNotOfOwner(service,owner);
 
-            List<ApplicationEntity> applications = applicationRepository.getAllByService(service);
-            return applications;
+            return applicationRepository.getAllByService(service);
 
         } catch (ResponseStatusException e) {
             e.printStackTrace();
@@ -90,13 +90,15 @@ public class ServiceOwnerController {
 
     /**
      * Повертає всі заявки від всіх сервісів власника, що потребують уваги власника.
-     * @param ownerId Ідентифікатор власника
+     * @param ownerIdString Ідентифікатор власника
      * @return Список заявок або null
      */
     @GetMapping("/owner/{owner_id}/application/refreshed/service/all")
-    public List<ApplicationEntity> getAllOwnerRefreshedApplications(@PathVariable("owner_id") Long ownerId) {
+    public List<ApplicationEntity> getAllOwnerRefreshedApplications(@PathVariable("owner_id") String ownerIdString) {
         try{
-            UserEntity ownerUser = dataProcessController.getUserWithRoleOrThrow(
+            Long ownerId = dataService.getLongOrThrow(ownerIdString);
+
+            UserEntity ownerUser = dataService.getUserWithRoleOrThrow(
                     ownerId,
                     roleRepository.findById(RoleConstants.OWNER).get());
 
@@ -104,9 +106,7 @@ public class ServiceOwnerController {
                     serviceRepository.getAllByOwnerUser(ownerUser)
             );//всі заявки, що відносяться до сервісу власника
 
-            List<ApplicationEntity> refreshedApplications =
-                    dataProcessController.getRefreshedApplicationsForOwner(allOwnerApplications);
-            return refreshedApplications;
+            return dataService.getRefreshedApplicationsForOwner(allOwnerApplications);
 
         } catch (ResponseStatusException e) {
             e.printStackTrace();
@@ -116,24 +116,26 @@ public class ServiceOwnerController {
 
     /**
      * Повертає всі заявки від одного сервісу власника, що потребують уваги власника. Якщо це не сервіс власника, то помилка доступу
-     * @param serviceId Ідентифікатор сервісу
-     * @param ownerId Ідентифікатор власника
+     * @param serviceIdString Ідентифікатор сервісу
+     * @param ownerIdString Ідентифікатор власника
      * @return Список заявок або null
      */
     @GetMapping("/owner/{owner_id}/application/refreshed/service/{service_id}")
-    public List<ApplicationEntity> getAllOwnerRefreshedApplicationsByService(@PathVariable("owner_id") Long ownerId,
-                                                                             @PathVariable("service_id") Long serviceId) {
+    public List<ApplicationEntity> getAllOwnerRefreshedApplicationsByService(@PathVariable("owner_id") String ownerIdString,
+                                                                             @PathVariable("service_id") String serviceIdString) {
         try {
-            UserEntity ownerUser = dataProcessController.getUserWithRoleOrThrow(
+            Long ownerId = dataService.getLongOrThrow(ownerIdString);
+            Long serviceId = dataService.getLongOrThrow(serviceIdString);
+
+            UserEntity ownerUser = dataService.getUserWithRoleOrThrow(
                     ownerId,
                     roleRepository.findById(RoleConstants.OWNER).get());
-            ServiceEntity service = dataProcessController.getServiceOrThrow(serviceId);
-            dataProcessController.throwIfServiceNotOfOwner(service,ownerUser);
+            ServiceEntity service = dataService.getServiceOrThrow(serviceId);
+            dataService.throwIfServiceNotOfOwner(service,ownerUser);
 
             List<ApplicationEntity> allOwnerApplications = applicationRepository.getAllByService(service);
-            List<ApplicationEntity> refreshedApplications =
-                    dataProcessController.getRefreshedApplicationsForOwner(allOwnerApplications);
-            return refreshedApplications;
+
+            return dataService.getRefreshedApplicationsForOwner(allOwnerApplications);
 
         }  catch (ResponseStatusException e) {
             e.printStackTrace();
@@ -143,19 +145,22 @@ public class ServiceOwnerController {
 
     /**
      * Повертає одну заявку від сервісів власника. Якщо такої заявки нема, чи це не сервіс власника, то помилка доступу
-     * @param applicationId Ідентифікатор заявки
-     * @param ownerId Ідентифікатор власника
+     * @param applicationIdString Ідентифікатор заявки
+     * @param ownerIdString Ідентифікатор власника
      * @return Заявка або null
      */
     @GetMapping("/owner/{owner_id}/application/{id}")
-    public ApplicationEntity getOwnerApplication(@PathVariable("owner_id") Long ownerId,
-                                                 @PathVariable("id") Long applicationId) {
+    public ApplicationEntity getOwnerApplication(@PathVariable("owner_id") String ownerIdString,
+                                                 @PathVariable("id") String applicationIdString) {
         try{
-            UserEntity ownerUser = dataProcessController.getUserWithRoleOrThrow(
+            Long ownerId = dataService.getLongOrThrow(ownerIdString);
+            Long applicationId = dataService.getLongOrThrow(applicationIdString);
+
+            UserEntity ownerUser = dataService.getUserWithRoleOrThrow(
                     ownerId,
                     roleRepository.findById(RoleConstants.OWNER).get());
-            ApplicationEntity application = dataProcessController.getApplicationOrThrow(applicationId);
-            dataProcessController.throwIfServiceNotOfOwner(application.getService(),ownerUser);
+            ApplicationEntity application = dataService.getApplicationOrThrow(applicationId);
+            dataService.throwIfServiceNotOfOwner(application.getService(),ownerUser);
 
             return application;
 
@@ -167,52 +172,40 @@ public class ServiceOwnerController {
 
     /**
      * Приймає одну заявку. Якщо такої заявки нема, чи це не сервіс власника, то помилка доступу
-     * @param applicationId Ідентифікатор заявки
-     * @param ownerId Ідентифікатор власника
+     * @param applicationIdString Ідентифікатор заявки
+     * @param ownerIdString Ідентифікатор власника
      * @param note Коментар (опціонально)
      */
     @GetMapping("/owner/{owner_id}/application/{id}/accept")
-    public void acceptApplicationByOwner(@PathVariable("id") Long applicationId,
-                                           @PathVariable("owner_id") Long ownerId,
+    public void acceptApplicationByOwner(@PathVariable("id") String applicationIdString,
+                                           @PathVariable("owner_id") String ownerIdString,
                                            @RequestParam(value = "note", required = false) String note) {
         try{
-            UserEntity ownerUser = dataProcessController.getUserWithRoleOrThrow(
+            Long ownerId = dataService.getLongOrThrow(ownerIdString);
+            Long applicationId = dataService.getLongOrThrow(applicationIdString);
+
+            UserEntity ownerUser = dataService.getUserWithRoleOrThrow(
                     ownerId,
                     roleRepository.findById(RoleConstants.OWNER).get());
-            ApplicationEntity application = dataProcessController.getApplicationOrThrow(applicationId);
-            dataProcessController.throwIfServiceNotOfOwner(application.getService(),ownerUser);
+            ApplicationEntity application = dataService.getApplicationOrThrow(applicationId);
+            dataService.throwIfServiceNotOfOwner(application.getService(),ownerUser);
 
-            ApplicationCheckingEntity checkRecord = null;
-            //Дивимося записи перевірок, щоб зрозуміти, чи заявка очікує підтвердження від власника
-            for (ApplicationCheckingEntity check: application.getCheckings() ) {//перевіряємо запис власника
-                if(check.getCheckType().equals(checkTypeRepository.findById(CheckTypeConstants.CHECKING_RECORD).get()) &&
-                        check.getRole().equals(roleRepository.findById(RoleConstants.OWNER).get()) ){//якщо це запис власника
-                    if(check.getCheckYesNoNull() == null){
-                        //все в порядку, ідемо далі
-                        checkRecord = check;
-                    }else if(check.getCheckYesNoNull()){//і він підтверджений
-                        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Власник вже перевірив заявку");
-                    }else{
-                        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Власник вже відхилив заявку");
-                    }
-                }
-            }
+            ApplicationCheckingEntity ownerCheckRecord = dataService
+                    .checkApplicationReadyForOwnerAndGetCheckingOrThrow(application);
 
             //Приймаємо заявку
             //Власник, що прийняв заявку
-            checkRecord.setUser(ownerUser);
+            ownerCheckRecord.setUser(ownerUser);
             //Запис факту підтвердження заявки
-            checkRecord.setCheckYesNoNull(true);
+            ownerCheckRecord.setCheckYesNoNull(true);
             //Дата прийняття заявки
-            checkRecord.setCheckingDate(new java.sql.Timestamp(new Date().getTime()));
+            ownerCheckRecord.setCheckingDate(new java.sql.Timestamp(new Date().getTime()));
             //Опціональний коментар
             if(note != null){
-                checkRecord.setNote(note);
+                ownerCheckRecord.setNote(note);
             }
             //Зберігаємо запис перевірки
-            checkingRepository.saveAndFlush(checkRecord);
-
-            return;
+            checkingRepository.saveAndFlush(ownerCheckRecord);
 
         } catch (ResponseStatusException e) {
             e.printStackTrace();
@@ -222,52 +215,40 @@ public class ServiceOwnerController {
 
     /**
      * Не приймає одну заявку. Якщо такої заявки нема, чи це не сервіс власника, то помилка доступу
-     * @param applicationId Ідентифікатор заявки
-     * @param ownerId Ідентифікатор власника
+     * @param applicationIdString Ідентифікатор заявки
+     * @param ownerIdString Ідентифікатор власника
      * @param note Коментар (опціонально)
      */
     @GetMapping("/owner/{owner_id}/application/{id}/decline")
-    public void declineApplicationByOwner(@PathVariable("id") Long applicationId,
-                                            @PathVariable("owner_id") Long ownerId,
+    public void declineApplicationByOwner(@PathVariable("id") String applicationIdString,
+                                            @PathVariable("owner_id") String ownerIdString,
                                             @RequestParam(value = "note", required = false) String note) {
         try{
-            UserEntity ownerUser = dataProcessController.getUserWithRoleOrThrow(
+            Long ownerId = dataService.getLongOrThrow(ownerIdString);
+            Long applicationId = dataService.getLongOrThrow(applicationIdString);
+
+            UserEntity ownerUser = dataService.getUserWithRoleOrThrow(
                     ownerId,
                     roleRepository.findById(RoleConstants.OWNER).get());
-            ApplicationEntity application = dataProcessController.getApplicationOrThrow(applicationId);
-            dataProcessController.throwIfServiceNotOfOwner(application.getService(),ownerUser);
+            ApplicationEntity application = dataService.getApplicationOrThrow(applicationId);
+            dataService.throwIfServiceNotOfOwner(application.getService(),ownerUser);
 
-            ApplicationCheckingEntity checkRecord = null;
-            //Дивимося записи перевірок, щоб зрозуміти, чи заявка очікує підтвердження від власника
-            for (ApplicationCheckingEntity check: application.getCheckings() ) {//перевіряємо запис власника
-                if(check.getCheckType().equals(checkTypeRepository.findById(CheckTypeConstants.CHECKING_RECORD).get()) &&
-                        check.getRole().equals(roleRepository.findById(RoleConstants.OWNER).get()) ){//якщо це запис власника
-                    if(check.getCheckYesNoNull() == null){
-                        //все в порядку, ідемо далі
-                        checkRecord = check;
-                    }else if(check.getCheckYesNoNull()){//і він підтверджений
-                        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Власник вже перевірив заявку");
-                    }else{
-                        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Власник вже відхилив заявку");
-                    }
-                }
-            }
+            ApplicationCheckingEntity ownerCheckRecord = dataService
+                    .checkApplicationReadyForOwnerAndGetCheckingOrThrow(application);
 
             //Відхиляємо заявку
             //Власник, що відхилив заявку
-            checkRecord.setUser(ownerUser);
+            ownerCheckRecord.setUser(ownerUser);
             //Запис факту підтвердження заявки
-            checkRecord.setCheckYesNoNull(false);
+            ownerCheckRecord.setCheckYesNoNull(false);
             //Дата прийняття заявки
-            checkRecord.setCheckingDate(new java.sql.Timestamp(new Date().getTime()));
+            ownerCheckRecord.setCheckingDate(new Timestamp(new Date().getTime()));
             //Опціональний коментар
             if(note != null){
-                checkRecord.setNote(note);
+                ownerCheckRecord.setNote(note);
             }
             //Зберігаємо запис перевірки
-            checkingRepository.saveAndFlush(checkRecord);
-
-            return;
+            checkingRepository.saveAndFlush(ownerCheckRecord);
 
         } catch (ResponseStatusException e) {
             e.printStackTrace();

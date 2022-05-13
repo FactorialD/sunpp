@@ -11,7 +11,7 @@ import ua.factoriald.sunpp.repository.ApplicationRepository;
 import ua.factoriald.sunpp.repository.CheckTypeRepository;
 import ua.factoriald.sunpp.repository.RoleRepository;
 import ua.factoriald.sunpp.repository.ServiceRepository;
-import ua.factoriald.sunpp.services.DataProcessController;
+import ua.factoriald.sunpp.services.DataProcessService;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -26,15 +26,15 @@ import java.util.List;
 @CrossOrigin(origins = "http://localhost:4200")
 public class ServiceUserController {
 
-    private final DataProcessController dataProcessController;
+    private final DataProcessService dataService;
     private final ApplicationRepository applicationRepository;
     private final ServiceRepository serviceRepository;
     private final CheckTypeRepository checkTypeRepository;
     private final RoleRepository roleRepository;
 
     @Autowired
-    public ServiceUserController(DataProcessController dataProcessController, ApplicationRepository applicationRepository, ServiceRepository serviceRepository, CheckTypeRepository checkTypeRepository, RoleRepository roleRepository) {
-        this.dataProcessController = dataProcessController;
+    public ServiceUserController(DataProcessService dataService, ApplicationRepository applicationRepository, ServiceRepository serviceRepository, CheckTypeRepository checkTypeRepository, RoleRepository roleRepository) {
+        this.dataService = dataService;
         this.applicationRepository = applicationRepository;
         this.serviceRepository = serviceRepository;
         this.checkTypeRepository = checkTypeRepository;
@@ -43,26 +43,29 @@ public class ServiceUserController {
 
     /**
      * Створює одну заявку
-     * @param userId Ідентифікатор користувача-заявляча
-     * @param serviceId Ідентифікатор потрібного сервісу
-     * @param roleId Ідентифікатор потрібної ролі
-     * @param departmentId Ідентифікатор підрозділу (опціонально)
+     * @param userIdString Ідентифікатор користувача-заявляча
+     * @param serviceIdString Ідентифікатор потрібного сервісу
+     * @param roleIdString Ідентифікатор потрібної ролі
+     * @param departmentIdString Ідентифікатор підрозділу (опціонально)
      * @param note Коментар (опціонально)
      */
     @GetMapping("/user/{user_id}/application/create/{service_id}/{role_id}/")
-    public ApplicationEntity createApplication(@PathVariable("user_id") Long userId,
-                                  @PathVariable("service_id") Long serviceId,
-                                  @PathVariable("role_id") Long roleId,
-                                  @RequestParam(value = "department_id", required = false) Long departmentId,
+    public ApplicationEntity createApplication(@PathVariable("user_id") String userIdString,
+                                  @PathVariable("service_id") String serviceIdString,
+                                  @PathVariable("role_id") String roleIdString,
+                                  @RequestParam(value = "department_id", required = false) String departmentIdString,
                                   @RequestParam(value = "note", required = false) String note) {
         try {
-            UserEntity user = dataProcessController.getUserOrThrow(userId);
-            ServiceEntity service = dataProcessController.getServiceOrThrow(serviceId);
-            RoleEntity role = dataProcessController.getRoleOrThrow(roleId);
-            DepartmentEntity department = null;
-            if(departmentId != null){
-                department = dataProcessController.getDepartmentOrThrow(departmentId);
-            }
+            Long userId = dataService.getLongOrThrow(userIdString);
+            Long serviceId = dataService.getLongOrThrow(serviceIdString);
+            Long roleId = dataService.getLongOrThrow(roleIdString);
+            Long departmentId = dataService.getLongOrThrow(departmentIdString);
+
+            UserEntity user = dataService.getUserOrThrow(userId);
+            ServiceEntity service = dataService.getServiceOrThrow(serviceId);
+            RoleEntity role = dataService.getRoleOrThrow(roleId);
+            DepartmentEntity department = dataService.getDepartmentOrThrow(departmentId);
+
             if(!service.getAvaliableRoles().contains(role)){
                 throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Сервіс не має такої ролі");
             }
@@ -125,10 +128,8 @@ public class ServiceUserController {
             application.setCheckings(new ArrayList<>(Arrays.asList(
                     userChecking,ownerChecking,adminChecking)));
 
-            //зберігаємо заявку
-            application = applicationRepository.saveAndFlush(application);
-
-            return application;
+            //зберігаємо заявку і повертаємо
+            return applicationRepository.saveAndFlush(application);
 
         } catch (ResponseStatusException e) {
             e.printStackTrace();
@@ -143,21 +144,20 @@ public class ServiceUserController {
     @GetMapping("/service/all")
     public List<ServiceEntity> getAllServices(){
 
-        List<ServiceEntity> services = serviceRepository.findAll();
-        System.out.println(services.toString());
-        return services;
+        return serviceRepository.findAll();
     }
 
     /**
      * Повертає один сервіс і інформацію про нього
-     * @param id Ідентифікатор сервісу
+     * @param serviceIdString Ідентифікатор сервісу
      * @return Сервіс або null
      */
-    @GetMapping("/service/{id}")
-    public ServiceEntity getService(@PathVariable("id") Long id) {
+    @GetMapping("/service/{service_id}")
+    public ServiceEntity getService(@PathVariable("service_id") String serviceIdString) {
         try {
-            ServiceEntity service = dataProcessController.getServiceOrThrow(id);
-            return service;
+            Long serviceId = dataService.getLongOrThrow(serviceIdString);
+
+            return dataService.getServiceOrThrow(serviceId);
 
         } catch (ResponseStatusException e) {
             e.printStackTrace();
@@ -167,16 +167,17 @@ public class ServiceUserController {
 
     /**
      * Повертає усі заявки одного користувача
-     * @param userId Ідентифікатор заявки
+     * @param userIdString Ідентифікатор заявки
      * @return Список заявок або null
      */
     @GetMapping("/user/{user_id}/application/all")
-    public List<ApplicationEntity> getWorkerApplications(@PathVariable("user_id") Long userId) {
+    public List<ApplicationEntity> getWorkerApplications(@PathVariable("user_id") String userIdString) {
         try {
-            UserEntity user = dataProcessController.getUserOrThrow(userId);
+            Long userId = dataService.getLongOrThrow(userIdString);
 
-            List<ApplicationEntity> applications = applicationRepository.getAllByApplicant(user);
-            return applications;
+            UserEntity user = dataService.getUserOrThrow(userId);
+
+            return applicationRepository.getAllByApplicant(user);
 
         } catch (ResponseStatusException e) {
             e.printStackTrace();

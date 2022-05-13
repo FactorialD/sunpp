@@ -1,16 +1,15 @@
 package ua.factoriald.sunpp.controller.rest;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 import ua.factoriald.sunpp.model.*;
-import ua.factoriald.sunpp.model.constants.CheckTypeConstants;
 import ua.factoriald.sunpp.model.constants.RoleConstants;
 import ua.factoriald.sunpp.repository.*;
-import ua.factoriald.sunpp.services.DataProcessController;
+import ua.factoriald.sunpp.services.DataProcessService;
 
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 
 /**
@@ -21,45 +20,42 @@ import java.util.List;
 @CrossOrigin(origins = "http://localhost:4200")
 public class ServiceAdminController {
 
-    private final DataProcessController dataProcessController;
+    private final DataProcessService dataService;
     private final WorkerRepository workerRepository;
-    private final ApplicationRepository applicationRepository;
     private final ApplicationCheckingRepository applicationCheckingRepository;
     private final RoleRepository roleRepository;
     private final UserRepository userRepository;
     private final UserHaveAccessToServiceRepository accessToServiceRepository;
     private final DepartmentRepository departmentRepository;
     private final PositionRepository positionRepository;
-    private final CheckTypeRepository checkTypeRepository;
 
     @Autowired
-    public ServiceAdminController(DataProcessController dataProcessController, WorkerRepository workerRepository, ApplicationRepository applicationRepository, ApplicationCheckingRepository applicationCheckingRepository, RoleRepository roleRepository, UserRepository userRepository, UserHaveAccessToServiceRepository accessToServiceRepository, DepartmentRepository departmentRepository, PositionRepository positionRepository, CheckTypeRepository checkTypeRepository) {
-        this.dataProcessController = dataProcessController;
+    public ServiceAdminController(DataProcessService dataService, WorkerRepository workerRepository, ApplicationCheckingRepository applicationCheckingRepository, RoleRepository roleRepository, UserRepository userRepository, UserHaveAccessToServiceRepository accessToServiceRepository, DepartmentRepository departmentRepository, PositionRepository positionRepository) {
+        this.dataService = dataService;
         this.workerRepository = workerRepository;
-        this.applicationRepository = applicationRepository;
         this.applicationCheckingRepository = applicationCheckingRepository;
         this.roleRepository = roleRepository;
         this.userRepository = userRepository;
         this.accessToServiceRepository = accessToServiceRepository;
         this.departmentRepository = departmentRepository;
         this.positionRepository = positionRepository;
-        this.checkTypeRepository = checkTypeRepository;
     }
 
     /**
      * Повертає всі заявки від усіх сервісів адміністратора
-     * @param adminId Ідентифікатор адміністратора
+     * @param adminIdString Ідентифікатор адміністратора
      * @return Список заявок або null
      */
     @GetMapping("/admin/{admin_id}/application/all/service/all")
-    public List<ApplicationEntity> getAllApplications(@PathVariable("admin_id") Long adminId) {
+    public List<ApplicationEntity> getAllApplications(@PathVariable("admin_id") String adminIdString) {
         try{
-            UserEntity admin = dataProcessController.getUserWithRoleOrThrow(
+            Long adminId = dataService.getLongOrThrow(adminIdString);
+
+            UserEntity admin = dataService.getUserWithRoleOrThrow(
                     adminId,
                     roleRepository.findById(RoleConstants.ADMIN).get());
 
-            List<ApplicationEntity> applications = dataProcessController.getAllApplicationsForAdmin(admin);
-            return applications;
+            return dataService.getAllApplicationsForAdmin(admin);
 
         } catch (ResponseStatusException e) {
             e.printStackTrace();
@@ -69,19 +65,22 @@ public class ServiceAdminController {
 
     /**
      * Повертає одну заявку від сервісів адміністратора
-     * @param adminId Ідентифікатор адміністратора
-     * @param applicationId Ідентифікатор заявки
+     * @param adminIdString Ідентифікатор адміністратора
+     * @param applicationIdString Ідентифікатор заявки
      * @return Заявка або null
      */
     @GetMapping("/admin/{admin_id}/application/{id}")
-    public ApplicationEntity getApplication(@PathVariable("admin_id") Long adminId,
-                                            @PathVariable("id") Long applicationId) {
+    public ApplicationEntity getApplication(@PathVariable("admin_id") String adminIdString,
+                                            @PathVariable("id") String applicationIdString) {
         try{
-            UserEntity adminUser = dataProcessController.getUserWithRoleOrThrow(
+            Long adminId = dataService.getLongOrThrow(adminIdString);
+            Long applicationId = dataService.getLongOrThrow(applicationIdString);
+
+            UserEntity adminUser = dataService.getUserWithRoleOrThrow(
                     adminId,
                     roleRepository.findById(RoleConstants.ADMIN).get());
-            ApplicationEntity application = dataProcessController.getApplicationOrThrow(applicationId);
-            dataProcessController.throwIfServiceNotOfAdmin(application.getService(),adminUser);
+            ApplicationEntity application = dataService.getApplicationOrThrow(applicationId);
+            dataService.throwIfServiceNotOfAdmin(application.getService(),adminUser);
 
             return application;
 
@@ -93,20 +92,20 @@ public class ServiceAdminController {
 
     /**
      * Повертає всі заявки, які очікують на рішення адміна
-     * @param adminId Ідентифікатор адміністратора
+     * @param adminIdString Ідентифікатор адміністратора
      * @return Список заявок або null
      */
     @GetMapping("/admin/{admin_id}/application/refreshed")
-    public List<ApplicationEntity> getAdminRefreshedApplications(@PathVariable("admin_id") Long adminId) {
+    public List<ApplicationEntity> getAdminRefreshedApplications(@PathVariable("admin_id") String adminIdString) {
         try{
-            UserEntity admin = dataProcessController.getUserWithRoleOrThrow(
+            Long adminId = dataService.getLongOrThrow(adminIdString);
+
+            UserEntity admin = dataService.getUserWithRoleOrThrow(
                     adminId,
                     roleRepository.findById(RoleConstants.ADMIN).get());
 
-            List<ApplicationEntity> allApplications = dataProcessController.getAllApplicationsForAdmin(admin);
-            List<ApplicationEntity> refreshedApplications =
-                    dataProcessController.getRefreshedApplicationsForAdmin(allApplications);
-            return refreshedApplications;
+            List<ApplicationEntity> allApplications = dataService.getAllApplicationsForAdmin(admin);
+            return dataService.getRefreshedApplicationsForAdmin(allApplications);
 
         } catch (ResponseStatusException e) {
             e.printStackTrace();
@@ -116,63 +115,43 @@ public class ServiceAdminController {
 
     /**
      * Приймає одну заявку
-     * @param applicationId Ідентифікатор заявки
-     * @param adminId Ідентифікатор адміністратора, що її приймає
+     * @param applicationIdString Ідентифікатор заявки
+     * @param adminIdString Ідентифікатор адміністратора, що її приймає
      * @param note Коментар адміністратора
      */
     @GetMapping("/admin/{admin_id}/application/{id}/accept")
-    public void acceptApplicationByAdmin(@PathVariable("id") Long applicationId,
-                                           @PathVariable("admin_id") Long adminId,
+    public void acceptApplicationByAdmin(@PathVariable("id") String applicationIdString,
+                                           @PathVariable("admin_id") String adminIdString,
                                            @RequestParam(value = "note", required = false) String note) {
         try {
-            UserEntity adminUser = dataProcessController.getUserWithRoleOrThrow(
+            Long applicationId = dataService.getLongOrThrow(applicationIdString);
+            Long adminId = dataService.getLongOrThrow(adminIdString);
+
+            UserEntity adminUser = dataService.getUserWithRoleOrThrow(
                     adminId,
                     roleRepository.findById(RoleConstants.ADMIN).get());
-            ApplicationEntity application = dataProcessController.getApplicationOrThrow(applicationId);
-            dataProcessController.throwIfServiceNotOfAdmin(application.getService(), adminUser);
+            ApplicationEntity application = dataService.getApplicationOrThrow(applicationId);
+            dataService.throwIfServiceNotOfAdmin(application.getService(), adminUser);
 
-            ApplicationCheckingEntity checkRecord = null;
-            ApplicationCheckingEntity userCheckRecord = null;
-            //Дивимося записи перевірок, щоб зрозуміти, чи заявка очікує підтвердження від адміна
-            for (ApplicationCheckingEntity check: application.getCheckings() ) {//перевіряємо записи власника і адміністратора
-                if(check.getCheckType().equals(checkTypeRepository.findById(CheckTypeConstants.CHECKING_RECORD).get()) &&
-                        check.getRole().equals(roleRepository.findById(RoleConstants.OWNER).get()) ){//якщо це запис власника
-                    if(check.getCheckYesNoNull() == null){
-                        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Власник ще не перевірив заявку");
-                    }else if(check.getCheckYesNoNull()){//і він підтверджений
-                        //то все в порядку, ідемо далі
-                    }else{
-                        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Власник відхилив заявку");
-                    }
-                } else if (check.getCheckType().equals(checkTypeRepository.findById(CheckTypeConstants.CHECKING_RECORD).get()) &&
-                        check.getRole().equals(roleRepository.findById(RoleConstants.ADMIN).get()) ){//якщо це запис адміна
-                    if(check.getCheckYesNoNull() == null){
-                        //адмін ще не перевірив заявку
-                        checkRecord = check;
-                    }else if(check.getCheckYesNoNull()){//і він підтверджений
-                        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Адміністратор вже прийняв заявку");
-                    }else{
-                        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Адміністратор вже відхилив заявку");
-                    }
-                }else{//це запис користувача, нічого не робимо
-                    //збережемо на потім
-                    userCheckRecord = check;
-                }
-            }
+            HashMap<String, ApplicationCheckingEntity> checkings =
+                    dataService.checkApplicationReadyForAdminAndGetCheckingsOrThrow(application);
+
+            ApplicationCheckingEntity adminCheckRecord = checkings.get("adminCheckRecord");
+            ApplicationCheckingEntity userCheckRecord = checkings.get("userCheckRecord");
 
             //Приймаємо заявку
             //Адмін, що прийняв заявку
-            checkRecord.setUser(adminUser);
+            adminCheckRecord.setUser(adminUser);
             //Запис факту підтвердження заявки
-            checkRecord.setCheckYesNoNull(true);
+            adminCheckRecord.setCheckYesNoNull(true);
             //Дата прийняття заявки
-            checkRecord.setCheckingDate(new java.sql.Timestamp(new Date().getTime()));
+            adminCheckRecord.setCheckingDate(new java.sql.Timestamp(new Date().getTime()));
             //Опціональний коментар
             if(note != null){
-                checkRecord.setNote(note);
+                adminCheckRecord.setNote(note);
             }
             //Зберігаємо запис перевірки
-            applicationCheckingRepository.saveAndFlush(checkRecord);
+            applicationCheckingRepository.saveAndFlush(adminCheckRecord);
 
             //Створюємо запис доступу
             UserHaveAccessToServiceEntity accessRecord = new UserHaveAccessToServiceEntity();
@@ -189,8 +168,6 @@ public class ServiceAdminController {
             //Зберігаємо запис доступу
             accessToServiceRepository.saveAndFlush(accessRecord);
 
-            return;
-
         } catch (ResponseStatusException e) {
             e.printStackTrace();
             throw e;
@@ -199,63 +176,42 @@ public class ServiceAdminController {
 
     /**
      * Відхилює одну заявку
-     * @param applicationId Ідентифікатор заявки
-     * @param adminId Ідентифікатор адміна
+     * @param applicationIdString Ідентифікатор заявки
+     * @param adminIdString Ідентифікатор адміна
      * @param note Коментар адміністратора
      */
     @GetMapping("/admin/{admin_id}/application/{id}/decline")
-    public void declineApplicationByAdmin(@PathVariable("id") Long applicationId,
-                                            @PathVariable("admin_id") Long adminId,
+    public void declineApplicationByAdmin(@PathVariable("id") String applicationIdString,
+                                            @PathVariable("admin_id") String adminIdString,
                                             @RequestParam(value = "note", required = false) String note) {
         try {
-            UserEntity adminUser = dataProcessController.getUserWithRoleOrThrow(
+            Long applicationId = dataService.getLongOrThrow(applicationIdString);
+            Long adminId = dataService.getLongOrThrow(adminIdString);
+
+            UserEntity adminUser = dataService.getUserWithRoleOrThrow(
                     adminId,
                     roleRepository.findById(RoleConstants.ADMIN).get());
-            ApplicationEntity application = dataProcessController.getApplicationOrThrow(applicationId);
-            dataProcessController.throwIfServiceNotOfAdmin(application.getService(), adminUser);
+            ApplicationEntity application = dataService.getApplicationOrThrow(applicationId);
+            dataService.throwIfServiceNotOfAdmin(application.getService(), adminUser);
 
-            ApplicationCheckingEntity checkRecord = null;
-            //Дивимося записи перевірок, щоб зрозуміти, чи заявка очікує підтвердження від адміна
-            for (ApplicationCheckingEntity check: application.getCheckings() ) {//перевіряємо записи власника і адміністратора
-                if(check.getCheckType().equals(checkTypeRepository.findById(CheckTypeConstants.CHECKING_RECORD).get()) &&
-                        check.getRole().equals(roleRepository.findById(RoleConstants.OWNER).get()) ){//якщо це запис власника
-                    if(check.getCheckYesNoNull() == null){
-                        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Власник ще не перевірив заявку");
-                    }else if(check.getCheckYesNoNull()){//і він підтверджений
-                        //то все в порядку, ідемо далі
-                    }else{
-                        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Власник відхилив заявку");
-                    }
-                } else if (check.getCheckType().equals(checkTypeRepository.findById(CheckTypeConstants.CHECKING_RECORD).get()) &&
-                        check.getRole().equals(roleRepository.findById(RoleConstants.ADMIN).get()) ){//якщо це запис адміна
-                    if(check.getCheckYesNoNull() == null){
-                        //адмін ще не перевірив заявку
-                        checkRecord = check;
-                    }else if(check.getCheckYesNoNull()){//і він підтверджений
-                        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Адміністратор вже прийняв заявку");
-                    }else{
-                        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Адміністратор вже відхилив заявку");
-                    }
-                }else{//це запис користувача, нічого не робимо
-                    //збережемо на потім
-                }
-            }
+            HashMap<String, ApplicationCheckingEntity> checkings =
+                    dataService.checkApplicationReadyForAdminAndGetCheckingsOrThrow(application);
+
+            ApplicationCheckingEntity adminCheckRecord = checkings.get("adminCheckRecord");
 
             //Відхилюємо заявку
             //Адмін, що прийняв заявку
-            checkRecord.setUser(adminUser);
+            adminCheckRecord.setUser(adminUser);
             //Запис факту відхилення заявки
-            checkRecord.setCheckYesNoNull(false);
+            adminCheckRecord.setCheckYesNoNull(false);
             //Дата відхилення заявки
-            checkRecord.setCheckingDate(new java.sql.Timestamp(new Date().getTime()));
+            adminCheckRecord.setCheckingDate(new java.sql.Timestamp(new Date().getTime()));
             //Опціональний коментар
             if(note != null){
-                checkRecord.setNote(note);
+                adminCheckRecord.setNote(note);
             }
             //Зберігаємо запис перевірки
-            applicationCheckingRepository.saveAndFlush(checkRecord);
-
-            return;
+            applicationCheckingRepository.saveAndFlush(adminCheckRecord);
 
         } catch (ResponseStatusException e) {
             e.printStackTrace();
@@ -270,20 +226,20 @@ public class ServiceAdminController {
     @GetMapping("/admin/user/all")
     public List<UserEntity> getAllUsers(){
 
-        List<UserEntity> users = userRepository.findAll();
-        return users;
+        return userRepository.findAll();
     }
 
     /**
      * Повертає одного користувача
-     * @param id Ідентифікатор користувача
+     * @param userIdString Ідентифікатор користувача
      * @return Користувач або null
      */
     @GetMapping("/admin/user/{id}")
-    public UserEntity getUser(@PathVariable("id") Long id) {
+    public UserEntity getUser(@PathVariable("id") String userIdString) {
         try {
-            UserEntity user = dataProcessController.getUserOrThrow(id);
-            return user;
+            Long userId = dataService.getLongOrThrow(userIdString);
+
+            return dataService.getUserOrThrow(userId);
 
         } catch (ResponseStatusException e) {
             e.printStackTrace();
@@ -298,20 +254,20 @@ public class ServiceAdminController {
     @GetMapping("/admin/worker/all")
     public List<WorkerEntity> getAllWorkers(){
 
-        List<WorkerEntity> workers = workerRepository.findAll();
-        return workers;
+        return workerRepository.findAll();
     }
 
     /**
      * Повертає одного робітника
-     * @param id Ідентифікатор робітника
+     * @param workerIdString Ідентифікатор робітника
      * @return Робітник або null
      */
     @GetMapping("/admin/worker/{id}")
-    public WorkerEntity getWorker(@PathVariable("id") Long id) {
+    public WorkerEntity getWorker(@PathVariable("id") String workerIdString) {
         try {
-            WorkerEntity worker = dataProcessController.getWorkerOrThrow(id);
-            return worker;
+            Long workerId = dataService.getLongOrThrow(workerIdString);
+
+            return dataService.getWorkerOrThrow(workerId);
 
         } catch (ResponseStatusException e) {
             e.printStackTrace();
@@ -326,8 +282,7 @@ public class ServiceAdminController {
     @GetMapping("/admin/department/all")
     public List<DepartmentEntity> getAllDepartments(){
 
-        List<DepartmentEntity> departments = departmentRepository.findAll();
-        return departments;
+        return departmentRepository.findAll();
     }
 
     /**
@@ -337,8 +292,7 @@ public class ServiceAdminController {
     @GetMapping("/admin/position/all")
     public List<PositionEntity> getAllPositions(){
 
-        List<PositionEntity> positions = positionRepository.findAll();
-        return positions;
+        return positionRepository.findAll();
     }
 
 }

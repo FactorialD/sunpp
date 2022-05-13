@@ -10,6 +10,7 @@ import ua.factoriald.sunpp.model.constants.RoleConstants;
 import ua.factoriald.sunpp.repository.*;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Optional;
 
@@ -22,7 +23,7 @@ import java.util.Optional;
  *
  */
 @Component
-public class DataProcessController {
+public class DataProcessService {
 
     private final UserRepository userRepository;
     private final UserHaveAccessToServiceRepository accessRepository;
@@ -34,7 +35,7 @@ public class DataProcessController {
     private final CheckTypeRepository checkTypeRepository;
 
     @Autowired
-    public DataProcessController(UserRepository userRepository, UserHaveAccessToServiceRepository accessRepository, RoleRepository roleRepository, ServiceRepository serviceRepository, ApplicationRepository applicationRepository, WorkerRepository workerRepository, DepartmentRepository departmentRepository, CheckTypeRepository checkTypeRepository) {
+    public DataProcessService(UserRepository userRepository, UserHaveAccessToServiceRepository accessRepository, RoleRepository roleRepository, ServiceRepository serviceRepository, ApplicationRepository applicationRepository, WorkerRepository workerRepository, DepartmentRepository departmentRepository, CheckTypeRepository checkTypeRepository) {
         this.userRepository = userRepository;
         this.accessRepository = accessRepository;
         this.roleRepository = roleRepository;
@@ -255,6 +256,91 @@ public class DataProcessController {
             }
         }
         return refreshedApplications;
+    }
+
+    /**
+     * Перевіряє записи заявки і якщо вона готова до перевірки адміном, то повертає записи перевірок
+     * @param application заявка, яка перевіряється
+     * @return Хеш-мап, що зберігає в собі запис перевірки адміна і запис перевірки користувача
+     */
+    public HashMap<String, ApplicationCheckingEntity> checkApplicationReadyForAdminAndGetCheckingsOrThrow(ApplicationEntity application)
+            throws ResponseStatusException{
+        ApplicationCheckingEntity adminCheckRecord = null;
+        ApplicationCheckingEntity userCheckRecord = null;
+
+        //Дивимося записи перевірок, щоб зрозуміти, чи заявка очікує підтвердження від адміна
+        for (ApplicationCheckingEntity check: application.getCheckings() ) {//перевіряємо записи власника і адміністратора
+            if(check.getCheckType().equals(checkTypeRepository.findById(CheckTypeConstants.CHECKING_RECORD).get()) &&
+                    check.getRole().equals(roleRepository.findById(RoleConstants.OWNER).get()) ){//якщо це запис власника
+                if(check.getCheckYesNoNull() == null){
+                    throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Власник ще не перевірив заявку");
+                }else if(check.getCheckYesNoNull()){//і він підтверджений
+                    //то все в порядку, ідемо далі
+                }else{
+                    throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Власник відхилив заявку");
+                }
+            } else if (check.getCheckType().equals(checkTypeRepository.findById(CheckTypeConstants.CHECKING_RECORD).get()) &&
+                    check.getRole().equals(roleRepository.findById(RoleConstants.ADMIN).get()) ){//якщо це запис адміна
+                if(check.getCheckYesNoNull() == null){
+                    //адмін ще не перевірив заявку
+                    adminCheckRecord = check;
+                }else if(check.getCheckYesNoNull()){//і він підтверджений
+                    throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Адміністратор вже прийняв заявку");
+                }else{
+                    throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Адміністратор вже відхилив заявку");
+                }
+            }else{//це запис користувача, нічого не робимо
+                //збережемо на потім
+                userCheckRecord = check;
+            }
+        }
+
+        HashMap<String, ApplicationCheckingEntity> checkings = new HashMap<>();
+        checkings.put("userCheckRecord", userCheckRecord);
+        checkings.put("adminCheckRecord", adminCheckRecord);
+        return checkings;
+
+    }
+
+    /**
+     * Перевіряє записи заявки і якщо вона готова до перевірки власником, то повертає запис перевірки
+     * @param application заявка, яка перевіряється
+     * @return запис перевірки адміна і запис перевірки користувача
+     */
+    public ApplicationCheckingEntity checkApplicationReadyForOwnerAndGetCheckingOrThrow(ApplicationEntity application)
+            throws ResponseStatusException{
+        ApplicationCheckingEntity ownerCheckRecord = null;
+        //Дивимося записи перевірок, щоб зрозуміти, чи заявка очікує підтвердження від власника
+        for (ApplicationCheckingEntity check: application.getCheckings() ) {//перевіряємо запис власника
+            if(check.getCheckType().equals(checkTypeRepository.findById(CheckTypeConstants.CHECKING_RECORD).get()) &&
+                    check.getRole().equals(roleRepository.findById(RoleConstants.OWNER).get()) ){//якщо це запис власника
+                if(check.getCheckYesNoNull() == null){
+                    //все в порядку, ідемо далі
+                    ownerCheckRecord = check;
+                }else if(check.getCheckYesNoNull()){//і він підтверджений
+                    throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Власник вже перевірив заявку");
+                }else{
+                    throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Власник вже відхилив заявку");
+                }
+            }
+        }
+        return ownerCheckRecord;
+    }
+
+    /**
+     * Намагається конвертувати строку в число. Якщо це null чи не число, то кидає виключення
+     * @param string
+     * @return
+     * @throws ResponseStatusException
+     */
+    public Long getLongOrThrow(String string) throws ResponseStatusException {
+        try {
+            //Long.valueOf кидає виключення не тільки коли строка не конвертується в число, а і якщо строка є null
+            return Long.valueOf(string);
+
+        } catch(NumberFormatException e) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Неправильні дані");
+        }
     }
 
 }
