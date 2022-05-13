@@ -2,4 +2,4 @@
 
 my test project for SUNPP
 
-this is simple server application, using Java Spring, Oracle.
+this is simple REST server application, using Java Spring, Oracle DB.
